@@ -18,9 +18,9 @@
 
 | 脚本 | 作用 |
 |---|---|
-| `PY <skill>/scripts/pdf_inventory.py in.pdf out/ [--pages 3,5-9]` | 每页段落 `P1..Pn`（坐标 pt、字号、种类）、下方空白 `free`、能否切开（`cut ok` / `column cut` / `no cut`）、右侧空白、图片框、页脚区；同时导出原页 PNG（`pageNN.png`） |
-| `PY <skill>/scripts/pdf_apply.py in.pdf plan.json out.pdf --report rep.json` | 应用计划，每页打印中文框数、英文缩放、error 和 `uncovered:` |
-| `PY <skill>/scripts/render_check.py out.pdf chk/ [--pages ...]` | 直接检查 PDF：中文过小、出界、与英文重叠、压图；导出 PNG |
+| `PY <skill>/scripts/pdf_inventory.py in.pdf out/ [--pages 3,5-9]` | 每页段落 `P1..Pn`（坐标 pt、字号、种类、**完整英文原文**）、下方空白 `free`、能否切开（`cut ok` / `column cut` / `no cut`）、右侧空白、图片框 `picture`、里面有文字的矢量框 `box`、页脚区；同时导出原页 PNG（`pageNN.png`）。结尾打印每页在 `inventory.md` 里的行号范围 |
+| `PY <skill>/scripts/pdf_apply.py in.pdf plan.json out.pdf --report rep.json [--merge b2.json b3.json]` | 应用计划，每页打印中文框数、英文缩放、error 和 `uncovered:`。`--merge` 把其他批次的计划一起应用（不用手工合并 JSON）。报告是 list，每页一项 |
+| `PY <skill>/scripts/render_check.py out.pdf chk/ [--pages ...]` | 直接检查 PDF：中文过小、出界、与英文重叠、压图（`zh_on_image`）、**压线（`zh_on_line`：表格线、图框边线、色块边缘从中文中间穿过）**；导出 PNG |
 
 种类 `kind`：`en` 要翻译；`zh` 是已有中文；`footer` 是页脚区英文（可不译）；`misc` 是数字/符号。没有文字层（扫描件、整页是图）的页标 `SCANNED/IMAGE-ONLY`：从 PNG 读英文，全部用 `textbox`（坐标 pt = 像素 × 72 / dpi，默认 dpi 110）。
 
@@ -68,6 +68,26 @@
 - **公式**（Beamer 公式常是图片或零散符号）：不译符号；需要时在下面加一行 `textbox` 释义。零散的 `misc` 符号段落不用管。
 - **`no cut`**：段落下面贴着图片、曲线形状（如云朵）或跨栏的内容。用 `right`、`textbox`，或先用 `move` 挪开挡住的东西。
 
+## 行为细节（照这里写，不用去读脚本源码）
+
+- **覆盖**：`below` / `right` 自动覆盖自己的 `p`；`textbox` 不会，必须写 `covers:["P4","P5"]`。`uncovered` 只统计 `kind=en`。
+- **`right` 只放一行**：放不下报 `no_room_right`（why 里给出可用宽度）。右上角校徽之类的图片和标题在同一高度时，可用宽度会被压到很小甚至为负——这时改 `below`，或用 `textbox` 放在标题下方。
+- **`below` 的宽度**：默认到本栏右边界；`w` 可以改宽。栏被缩小（`en_scale`<1）时，宽度同样乘以缩放比例。
+- **长中文（会折成 2 行以上）+ 窄栏 不要用 `below`**：栏越缩、中文越折行、需要的空隙越大，会一路缩到 `too_full`。改用 `textbox` 放到旁边或底部空白。
+- **英文段落比它所在的栏还宽**（某一行伸到旁边图片上方）时，这一栏的 `below` 会全部报 `no_room: something below it spans into the next column`。整栏改 `textbox`，不要逐个试。
+- **`textbox` 的 `h`** 是上限：文字缩到 `min_pt` 仍超过 `h` 就报 `overflow`（why 里有需要的高度）。不确定就不写 `h`。`textbox` 落在被下移/缩小的栏里时，坐标会跟着换算；落在栏外则原位不动。
+- **`move`** 只移动原页面内容，不带动中文框；`rect` 只搬**完全落在框内**的图片和矢量图形，只有一部分在框内的（校徽、页脚色条、页面背景）留在原地，所以 `rect` 可以放心画大一点把整组图框住。`scale` 以 `rect` 左上角为原点。图片/公式不会随 `below` 的下移自动跟随旁边的要点。
+- **`dy` 为负**可以把中文往上贴近英文、减少切开的空隙。
+- `align` 用 `l/ctr/r`，`anchor` 用 `t/ctr/b`（也接受 left/center/right、top/middle/bottom；其他写法报 `bad_value`）。
+- 矢量表格切开后边框和底色会连续，不会断。
+
+## 两类容易排坏的页
+
+- **框图页**（inventory 里有多个 `box`：思维导图、ACID/BASE 这类"标签框 + 说明框"）：框和框之间通常只有几 pt，中文放在框的正下方会压在下一个框的边线上。做法按顺序试：① 框内英文下方 `free` 够就放框内（`below` + `room:"none"`）；② 整页有一侧或底部空白，就放一个带编号的汇总 `textbox`（"① Atomicity 原子性：……"），`covers` 列出对应段落；③ 用 `move` 把整组框缩小（`rect` + `scale`）腾出空白；④ 都不行就报告给用户。短标签（框里一个词）用 `right` 或框内 `below`+`align:"ctr"`，不要放到框的边线外侧贴着。
+- **段落间距只有 1–2pt 的密集页**：不要逐段 `below`（每段都切开，英文会缩得很小）。把一节的译文合成一个 `textbox`，放在该节英文之后或旁边空白，用 `covers` 标明。
+
 ## 检查
 
-`pdf_apply.py` 的 error 要为 0、`uncovered:` 为空（页脚、`misc` 不算）；`render_check.py` 的 error 为 0。然后看 PNG：检查器只看几何，不判断"中文是否对着正确的英文"、白底有没有挡住内容、切开处是否拉伸出奇怪的条纹。有问题改计划，重新从原 PDF 应用。
+`pdf_apply.py` 的 error 要为 0、`uncovered:` 为空（页脚、`misc` 不算）；`render_check.py` 的 error 为 0。`zh_on_line` 是真问题（中文被线划过，像删除线）：把中文挪开，确实只能放在那里时加 `fill:"FFFFFF"` 垫白底，并在 PNG 里确认白底没有挡住别的内容。然后看 PNG：检查器不判断"中文是否紧跟着对应的英文"、白底有没有挡住内容、切开处是否拉伸出奇怪的条纹。译文被放到离原文很远的地方（比如堆在页面角落）也算没做好：要么挪近，要么加编号/小标题让人能对上，并写进报告。有问题改计划，重新从原 PDF 应用。
+
+报告里的页码一律用 PDF 页码（第 N 页 = PDF 的第 N 页）；幻灯片上印的页码可能不同，不要混用。只能说"检查器 0 error + 已看过的页"，没看过 PNG 的页不要写成"已人工复核"。

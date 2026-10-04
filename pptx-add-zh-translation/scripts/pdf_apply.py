@@ -1,6 +1,7 @@
 """PDF mode, step 2: apply a translation plan to a PDF and write a new bilingual PDF.
 
-Usage: python3 pdf_apply.py lecture.pdf plan.json out.pdf [--report rep.json]
+Usage: python3 pdf_apply.py lecture.pdf plan.json out.pdf [--report rep.json] [--merge b2.json b3.json ...]
+(--merge adds the pages of further batch plans; a page listed twice takes the last one.)
 
 Plan format: references/pdf-mode.md. The original stays vector: edited pages are
 rebuilt from clipped pieces of the original page (show_pdf_page), so English text
@@ -28,6 +29,23 @@ from pdfmodel import (cut_for, draw_lines, find_cut, fit, font,  # noqa: E402
 
 DEFAULTS = {"min_pt": 12, "scale": 0.75, "title_scale": 0.5, "color": None, "font": None,
             "pad": 2, "min_en_scale": 0.75}
+
+
+ALIGN = {"l": "l", "left": "l", "ctr": "ctr", "c": "ctr", "center": "ctr", "centre": "ctr", "r": "r", "right": "r"}
+ANCHOR = {"t": "t", "top": "t", "ctr": "ctr", "c": "ctr", "center": "ctr", "centre": "ctr", "middle": "ctr",
+          "b": "b", "bottom": "b"}
+
+
+def normalize(op, errs):
+    """Accept left/center/right and top/middle/bottom spellings; anything else is an error, not a silent centre."""
+    for key, table in (("align", ALIGN), ("anchor", ANCHOR)):
+        if key in op:
+            v = table.get(str(op[key]).lower())
+            if v is None:
+                errs.append({"level": "error", "type": "bad_value", "op": op.get("op"),
+                             "why": "%s=%r; use %s" % (key, op[key], "l/ctr/r" if key == "align" else "t/ctr/b")})
+                v = "l" if key == "align" else "t"
+            op[key] = v
 
 
 class Flow:
@@ -151,6 +169,18 @@ def make_flows(ctx, cut_req, errs):
                 b[3] > f.top and b[1] < f.bottom and b[2] > xr[0] and b[0] < xr[1]
                 and (b[0] < xr[0] - 0.5 or b[2] > xr[1] + 0.5) for b in boxes_of(ctx)):
             f.top = None
+        if f.top is not None and xr is None:
+            # the scale origin must not run through a table/frame: lines above it would keep their
+            # size while the rest shrinks. Lift it to just above whatever line art it crosses.
+            y = f.top
+            for _ in range(10):
+                cross = [d["bbox"] for d in ctx["draws"] if not d["bg"] and d["bbox"][1] < y - 0.5 < d["bbox"][3] - 1]
+                if not cross:
+                    break
+                y = min(b[1] for b in cross) - 1
+            solid = [ln["bbox"] for P in ctx["paras"] for ln in P["lines"]] + [o["bbox"] for o in ctx["imgs"] if not o["bg"]]
+            if 0 < y < f.top and not any(b[1] < y < b[3] for b in solid):
+                f.top = y
     return flows
 
 
@@ -172,6 +202,7 @@ def plan_page(src_page, entry, d, fnt, errs):
 
     for op in entry["ops"]:
         kind = op["op"]
+        normalize(op, errs)
         covered.update(op.get("covers", []))
         if kind == "skip":
             skipped.update(op["p"] if isinstance(op["p"], list) else [op["p"]])
@@ -358,12 +389,15 @@ def build_page(out, src, n, W, H, lay, moves):
     page = out.new_page(width=W, height=H)
     strip_doc = pymupdf.open()
     strip_doc.insert_pdf(src, from_page=n - 1, to_page=n - 1)
+    # a full-page background picture (scan) is cut pixel-wise; otherwise pictures and line art only
+    # partly inside a moved rect (logo, footer bar) stay where they are and are not carried along
+    has_bg = any(im["bg"] for im in page_objects(src[n - 1])[0])
     if moves:
         sp = strip_doc[0]
         drop_pictures_inside(sp, [m["rect"] for m in moves])
         for m in moves:
             sp.add_redact_annot(pymupdf.Rect(m["rect"]), fill=False, cross_out=False)
-        sp.apply_redactions(images=2, graphics=1, text=0)
+        sp.apply_redactions(images=2 if has_bg else 0, graphics=1, text=0)
     flows = lay.flows
     full = len(flows) == 1 and flows[0].x0 <= 0.5 and flows[0].x1 >= W - 0.5
     if full:
@@ -414,7 +448,15 @@ def build_page(out, src, n, W, H, lay, moves):
         tx, ty = r.x0 + m["dx"], r.y0 + m["dy"]
         x, y = lay.map(tx, ty)
         k = m["scale"] * lay.s(tx, ty)
-        page.show_pdf_page(pymupdf.Rect(x, y, x + r.width * k, y + r.height * k), src, n - 1, clip=r)
+        piece = pymupdf.open()
+        piece.insert_pdf(src, from_page=n - 1, to_page=n - 1)
+        pp = piece[0]
+        for o in (pymupdf.Rect(0, 0, W, r.y0), pymupdf.Rect(0, r.y1, W, H),
+                  pymupdf.Rect(0, r.y0, r.x0, r.y1), pymupdf.Rect(r.x1, r.y0, W, r.y1)):
+            if not o.is_empty:
+                pp.add_redact_annot(o, fill=False, cross_out=False)
+        pp.apply_redactions(images=0 if has_bg else 1, graphics=2, text=1)
+        page.show_pdf_page(pymupdf.Rect(x, y, x + r.width * k, y + r.height * k), piece, 0, clip=r)
     return page
 
 
@@ -424,6 +466,7 @@ def main():
     ap.add_argument("plan", type=Path)
     ap.add_argument("out", type=Path)
     ap.add_argument("--report", type=Path)
+    ap.add_argument("--merge", type=Path, nargs="*", default=[], help="more plan files (batches) to apply together")
     a = ap.parse_args()
     if a.out.resolve() == a.pdf.resolve():
         sys.exit("refusing to overwrite the original PDF")
@@ -432,6 +475,8 @@ def main():
     fnt = font(d["font"])
     src = pymupdf.open(a.pdf)
     entries = {e["page"]: e for e in plan["pages"]}
+    for extra in a.merge:
+        entries.update({e["page"]: e for e in json.loads(extra.read_text(encoding="utf-8"))["pages"]})
     out = pymupdf.open()
     report = []
     for n in range(1, src.page_count + 1):

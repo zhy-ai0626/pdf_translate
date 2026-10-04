@@ -11,7 +11,8 @@ system soffice. LibreOffice layout is approximate (fonts such as Consolas may be
 Hidden slides are unhidden in a temporary copy so PDF page N == slide N.
 
 Checks: with PyMuPDF installed, on the rendered PDF (Chinese text < --min-pt, text
-outside the slide, overlapping / touching text, Chinese on pictures). Without PyMuPDF
+outside the slide, overlapping / touching text, Chinese on pictures, Chinese crossing
+a line / box border / colour edge). Without PyMuPDF
 (e.g. DSH bundled Python), the same checks are ESTIMATED from the slide XML
 (estimate.py) and PNGs come from the LibreOffice Kit renderer when available.
 Always look at the PNGs too when the user wants visual review.
@@ -113,7 +114,40 @@ def area(r):
     return max(r[2] - r[0], 0) * max(r[3] - r[1], 0)
 
 
-def check_page(page, min_pt):
+def zh_on_content(page, zh_lines, dpi=110):
+    """Chinese lines whose background is not one flat colour: the text crosses a table rule, a box
+    border, the edge of a coloured bar or other content. Found by rendering the page without the
+    Chinese text and counting pixels under each line that differ from the dominant colour."""
+    if not zh_lines:
+        return []
+    import pymupdf as fitz
+    tmp = fitz.open()
+    tmp.insert_pdf(page.parent, from_page=page.number, to_page=page.number)
+    bare = tmp[0]
+    for ln in zh_lines:
+        bare.add_redact_annot(fitz.Rect(ln["raw"]), fill=False, cross_out=False)
+    bare.apply_redactions(images=0, graphics=0, text=0)
+    hits = []
+    for ln in zh_lines:
+        x0, y0, x1, y1 = ln["bbox"]
+        if x1 - x0 < 3 or y1 - y0 < 2:
+            continue
+        pix = bare.get_pixmap(dpi=dpi, clip=fitz.Rect(x0 + 1, y0, x1 - 1, y1), alpha=False)
+        s, n = pix.samples, pix.n
+        tally = {}
+        for i in range(0, len(s), n):
+            k = (s[i] >> 3, s[i + 1] >> 3, s[i + 2] >> 3)
+            tally[k] = tally.get(k, 0) + 1
+        if not tally:
+            continue
+        m = [c * 8 + 4 for c in max(tally, key=tally.get)]
+        off = sum(c for k, c in tally.items() if max(abs(k[j] * 8 + 4 - m[j]) for j in range(3)) > 40)
+        if off >= 12:
+            hits.append((ln, off))
+    return hits
+
+
+def check_page(page, min_pt, strict_lines=False):
     W, H = page.rect.width, page.rect.height
     lines = []
     words = page.get_text("words")  # line bboxes include trailing spaces; tighten with word boxes
@@ -155,6 +189,7 @@ def check_page(page, min_pt):
                 issues.append({"level": "warn", "type": "tight", "a": a["text"][:50], "b": b["text"][:50]})
     imgs = [im["bbox"] for im in page.get_image_info()
             if 400 < area(im["bbox"]) < 0.6 * W * H]  # skip slide backgrounds
+    clear = []
     for ln in lines:
         if not ln["zh"]:
             continue
@@ -163,6 +198,13 @@ def check_page(page, min_pt):
                 issues.append({"level": "warn", "type": "zh_on_image", "text": ln["text"][:60],
                                "image": [round(v) for v in im]})
                 break
+        else:
+            clear.append(ln)
+    for ln, off in zh_on_content(page, clear):
+        issues.append({"level": "error" if strict_lines else "warn", "type": "zh_on_line", "text": ln["text"][:60],
+                       "bbox": [round(v) for v in ln["raw"]],
+                       "why": "a line / box border / colour edge runs through this Chinese (%d px): "
+                              "move it clear or give it a white fill" % off})
     fonts = sorted({f for ln in lines for f in ln["fonts"]})
     return issues, fonts
 
@@ -248,17 +290,23 @@ def check_pdf(a):
         page = doc[n - 1]
         png = a.out_dir / ("page%02d.png" % n)
         page.get_pixmap(dpi=a.dpi).save(png)
-        issues, fonts = check_page(page, a.min_pt)
+        issues, fonts = check_page(page, a.min_pt, strict_lines=True)
         results.append({"page": n, "png": str(png), "zh_fonts": fonts, "issues": issues})
     (a.out_dir / "check.json").write_text(json.dumps({"mode": "pdf", "pdf": str(a.deck), "pages": results},
                                                      ensure_ascii=False, indent=1), encoding="utf-8")
-    print("check mode: pdf")
+    print("check mode: pdf; PNGs: %s/pageNN.png" % a.out_dir)
+    clean = []
     for r in results:
         errs = [i for i in r["issues"] if i["level"] == "error"]
         bad += bool(errs)
-        print("page %d: %d error(s), %d warning(s) -> %s" % (r["page"], len(errs), len(r["issues"]) - len(errs), r["png"]))
+        if not r["issues"]:
+            clean.append(str(r["page"]))
+            continue
+        print("page %d: %d error(s), %d warning(s)" % (r["page"], len(errs), len(r["issues"]) - len(errs)))
         for i in r["issues"]:
             print("   ", i)
+    if clean:
+        print("no issues: page", ",".join(clean))
     print("%d/%d pages with errors" % (bad, len(results)))
 
 
