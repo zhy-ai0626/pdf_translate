@@ -2,6 +2,8 @@
 
 Usage: python3 pdf_inventory.py lecture.pdf out_dir [--pages 3,5-9] [--dpi 110]
 Writes out_dir/inventory.md (read this), inventory.json and pageNN.png (original pages).
+inventory.md carries the full English text; the printed page index gives each page's line
+range in it, so a batch can be read with offset/limit instead of the whole file.
 
 Per page: paragraphs P1..Pn (ids used by the plan) with bbox [x0,y0,x1,y1] in pt,
 font size, kind (en = needs Chinese, zh = existing Chinese, misc = numbers/symbols),
@@ -22,6 +24,10 @@ from pdfmodel import (below_right, cut_for, footer_top, free_below, free_right, 
                       mark_footer, page_objects, paragraphs, parse_pages)
 
 
+def inside(a, b):
+    return a[0] >= b[0] - 2 and a[1] >= b[1] - 2 and a[2] <= b[2] + 2 and a[3] <= b[3] + 2
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("pdf", type=Path)
@@ -38,8 +44,9 @@ def main():
           "(optional), misc = numbers/symbols. `below: free N` = empty pt under the paragraph; "
           "`cut ok@y` = page can be opened up there, full width; `column cut` = only that column moves "
           "(pdf_apply adds room automatically); "
-          "`no cut` = Chinese under it needs a textbox/move instead.", ""]
-    data = []
+          "`no cut` = Chinese under it needs a textbox/move instead. `box` = a vector frame/shape "
+          "(diagram box, callout): Chinese must stay clear of its border.", ""]
+    data, index = [], []
     for n in pages:
         page = doc[n - 1]
         W, H = page.rect.width, page.rect.height
@@ -55,6 +62,7 @@ def main():
             flags.append("SCANNED/IMAGE-ONLY (no text layer: read the PNG, use textbox ops)")
         if any(P["kind"] == "zh" for P in paras):
             flags.append("HAS CHINESE")
+        start = len(md) + 1
         md.append("## Page %d%s" % (n, (" - " + "; ".join(flags)) if flags else ""))
         md.append("png: %s; footer zone y>=%d" % (png.name, ft) if ft < H else "png: %s" % png.name)
         rows = []
@@ -73,18 +81,25 @@ def main():
             md.append("- %s %s [%d,%d,%d,%d] %gpt%s %dL | below: free %d, %s | right: x %d..%d | %s" % (
                 P["id"], P["kind"], *b, row["size"], " bullet" if P["bullet"] else "", row["lines"], row["free_below"],
                 ("no cut" if cut is None else "cut ok@%g" % cut if xr_cut is None
-                 else "column cut x%d..%d @%g" % (xr_cut[0], xr_cut[1], cut)), *row["free_right"], P["text"][:110]))
+                 else "column cut x%d..%d @%g" % (xr_cut[0], xr_cut[1], cut)), *row["free_right"], P["text"]))
         for im in imgs:
             md.append("- picture%s [%d,%d,%d,%d]" % (" (background)" if im["bg"] else "", *[round(v) for v in im["bbox"]]))
+        frames = [[round(v) for v in d["bbox"]] for d in draws if not d["bg"]
+                  and d["bbox"][2] - d["bbox"][0] > 40 and d["bbox"][3] - d["bbox"][1] > 15
+                  and d["bbox"][1] < ft and any(inside(P["bbox"], d["bbox"]) for P in paras)]
+        for b in frames:
+            md.append("- box [%d,%d,%d,%d]" % tuple(b))
         md.append("")
+        index.append("%d:%d-%d" % (n, start, len(md)))
         data.append({"page": n, "width": W, "height": H, "footer_top": ft, "png": str(png), "flags": flags,
-                     "paragraphs": rows, "pictures": [im["bbox"] for im in imgs],
+                     "paragraphs": rows, "pictures": [im["bbox"] for im in imgs], "boxes": frames,
                      "english_paragraphs": len(en)})
     (a.out_dir / "inventory.md").write_text("\n".join(md), encoding="utf-8")
     (a.out_dir / "inventory.json").write_text(json.dumps({"pdf": str(a.pdf), "pages": data}, ensure_ascii=False, indent=1),
                                               encoding="utf-8")
     print("wrote", a.out_dir / "inventory.md", "-", sum(d["english_paragraphs"] for d in data), "English paragraphs on",
           len(data), "pages;", sum(1 for d in data if d["flags"] and d["flags"][0].startswith("SCANNED")), "image-only pages")
+    print("inventory.md lines per page (page:first-last):", " ".join(index))
 
 
 if __name__ == "__main__":
