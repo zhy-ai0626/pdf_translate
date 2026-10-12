@@ -22,7 +22,7 @@ cp -r pdf_translate/pptx-add-zh-translation ~/.claude/skills/      # Claude Code
 
 - Python 3 + `lxml`（PPTX 模式）
 - `pymupdf`（PDF 模式；PPTX 模式下可选，用于更准确的渲染检查）
-- 渲染 PPTX：macOS 上的 Microsoft PowerPoint、WPS（`wpscli`），或 LibreOffice / DeepSeek Harness 内置的 LibreOffice Kit
+- 渲染 PPTX：macOS 上的 WPS（`wpscli`，默认）、Microsoft PowerPoint，或 LibreOffice / DeepSeek Harness 内置的 LibreOffice Kit
 
 DeepSeek Harness 自带的 Python 没有 PyMuPDF：PDF 脚本会自动改用系统里装有 PyMuPDF 的 `python3`，也可以设置 `PPTX_ZH_PDF_PY=/path/to/python3`。
 

@@ -4,8 +4,8 @@ Usage: python3 render_check.py deck.pptx out_dir [--pages 4,9] [--min-pt 12] [--
        [--renderer auto|powerpoint|wps|lok|soffice|none] [--lok-node N --lok-cli C]
        python3 render_check.py bilingual.pdf out_dir [--pages ...]   (PDF mode: checks the PDF itself)
 
-Renderers (auto order): Microsoft PowerPoint via AppleScript (macOS, most faithful);
-WPS Office command line `wpscli ppt2pdf` (macOS, close to PowerPoint, no GUI automation);
+Renderers (auto order): WPS Office command line `wpscli ppt2pdf` (macOS; the user views decks in WPS,
+fast, no GUI automation); Microsoft PowerPoint via AppleScript (macOS);
 DeepSeek Harness' bundled LibreOffice Kit (pass --lok-node/--lok-cli, or env
 PPTX_ZH_LOK_NODE / PPTX_ZH_LOK_CLI, or auto-detected in the DSH app bundle);
 system soffice. LibreOffice layout is approximate (fonts such as Consolas may be missing).
@@ -77,7 +77,7 @@ def run_lok(lok, *args):
 
 
 def export_pdf(pptx, pdf, a):
-    order = [a.renderer] if a.renderer != "auto" else ["powerpoint", "wps", "lok", "soffice"]
+    order = [a.renderer] if a.renderer != "auto" else ["wps", "powerpoint", "lok", "soffice"]
     for kind in order:
         if kind == "powerpoint" and sys.platform == "darwin" and POWERPOINT.exists():
             # PowerPoint is sandboxed: folders outside its container trigger a "grant file access" dialog,

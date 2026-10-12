@@ -24,11 +24,11 @@ description: 在英文课件的原页面上补充中文翻译（同页双语，�
 
 | Harness | Python（下文 PY） | 渲染器（`render_check.py --renderer`） |
 |---|---|---|
-| Claude Code | `python3`（需 lxml；有 pymupdf 时检查最准） | `auto`：PowerPoint → WPS（`wpscli`）→ LibreOffice |
-| Codex | `python3`；调用 PowerPoint 的 `osascript` 需要申请沙箱外执行/GUI 自动化授权 | `auto`；授权被拒时用 `wps`（纯命令行，不需 GUI 授权）或 `soffice` |
+| Claude Code | `python3`（需 lxml；有 pymupdf 时检查最准） | `auto`：WPS（`wpscli`）→ PowerPoint → LibreOffice |
+| Codex | `python3`；调用 PowerPoint 的 `osascript` 需要申请沙箱外执行/GUI 自动化授权 | `auto`（先用 WPS，纯命令行，不需 GUI 授权）；都不行用 `soffice` |
 | DeepSeek Harness | 调 `load_workspace_dependencies`，用它返回的 Python（自带 lxml，无 PyMuPDF）。**不要 pip 安装** | `lok`：内置 LibreOffice Kit。把已加载 office 技能里 *Installed LibreOffice Kit* 的 node / cli 路径传给 `--lok-node --lok-cli`（macOS 上不传会自动找 DSH 安装目录）。用户明确要求才改用 PowerPoint |
 
-没有 PyMuPDF 时：`render_check.py` 仍导出 PDF，PNG 由 LibreOffice Kit 生成，版面检查改为**按 XML 估算**（输出 `check mode: estimated-from-xml`，误差约 10–20pt：估算的 error 要对照 PNG 确认，不能直接当成真问题）；`layout_hints.py` 直接传原稿 `.pptx`。LibreOffice 缺 Consolas 等字体，版面只是近似。WPS 渲染接近 PowerPoint，但个别页行距、换行不同；用户用 WPS 看课件时以 `--renderer wps` 为准。**PDF 模式不需要任何渲染器**（render_check 直接查 PDF），不要去找 lok。
+没有 PyMuPDF 时：`render_check.py` 仍导出 PDF，PNG 由 LibreOffice Kit 生成，版面检查改为**按 XML 估算**（输出 `check mode: estimated-from-xml`，误差约 10–20pt：估算的 error 要对照 PNG 确认，不能直接当成真问题）；`layout_hints.py` 直接传原稿 `.pptx`。LibreOffice 缺 Consolas 等字体，版面只是近似。默认以 WPS 渲染为准（用户用 WPS 看课件）；WPS 和 PowerPoint 个别页行距、换行不同，用户说要在 PowerPoint 里放映时加 `--renderer powerpoint` 复查。**PDF 模式不需要任何渲染器**（render_check 直接查 PDF），不要去找 lok。
 
 ## 工具
 
@@ -75,6 +75,6 @@ python-pptx 打不开含 `mc:AlternateContent`/OLE 的课件（`has_ph_elm` 报�
 - 标题框通常是底部对齐，往标题里加段落会把英文往上顶；标题中文用独立 `textbox` 放在英文标题右侧同一行（右侧空间不够就放标题下方并把标题上移）。
 - 表格加中文后行变高会超出页面：先 `table_box` 加宽表格（减少换行），再 `table_scale` 缩英文，最后才缩中文。
 - 按段落播放动画的形状（inventory 标 `PARA-ANIMATED`）不能插段落，否则动画错位——改用 `textbox`，并告诉用户这些中文不会随动画出现。
-- PowerPoint 有沙盒：`render_check.py` 已把输入和导出放在 `~/Library/Containers/com.microsoft.Powerpoint/Data/tmp/pptx_zh/` 里中转，再把 PDF 移到 out_dir，所以输出目录放在任何位置都不会弹「授予文件访问权限」。不要绕过 render_check 直接用 osascript 调 PowerPoint 导出。
+- WPS 和 PowerPoint 都有沙盒：`render_check.py` 已把输入和导出放在各自容器里（`~/Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/pptx_zh/`、`…/com.microsoft.Powerpoint/Data/tmp/pptx_zh/`）中转，再把 PDF 移到 out_dir，不会报无权限或弹「授予文件访问权限」。不要绕过 render_check 直接调 `wpscli` 或 osascript 导出。
 - 隐藏页 PowerPoint 默认不导出，`render_check.py` 已自动取消隐藏（仅渲染副本），所以 PDF 第 N 页 = 第 N 张幻灯片。
 - 视频页只翻译可见文字，不要编造视频内容。
