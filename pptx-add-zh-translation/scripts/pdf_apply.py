@@ -351,8 +351,11 @@ def plan_page(src_page, entry, d, fnt, errs):
             boxes.append({"x": x, "y": cy - h / 2 + op.get("dy", 0), "w": w, "lines": lines, "pt": size,
                           "color": color or ("%06X" % P["color"]), "align": "l", "fill": op.get("fill")})
         elif kind == "textbox":
-            x, y = lay.map(op["x"], op["y"])
-            k = lay.s(op["x"], op["y"])
+            if op.get("abs"):  # coordinates on the finished page (e.g. read off the output PNG): no remapping
+                (x, y), k = (op["x"], op["y"]), 1
+            else:
+                x, y = lay.map(op["x"], op["y"])
+                k = lay.s(op["x"], op["y"])
             max_h = op["h"] * k if "h" in op else None
             size, lines, h, ok = fit(resolve_text(op), op["w"] * k, op.get("pt", 16), d["min_pt"], max_h, fnt)
             if not ok:

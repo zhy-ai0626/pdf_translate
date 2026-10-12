@@ -4,7 +4,7 @@
 
 - **PPTX**：直接改幻灯片 XML，在每条英文旁/下插入中文，输出 `<原名>_双语.pptx`。
 - **PDF**（只有 PDF 课件时）：英文保持矢量、可选中；在段落下方把页面（或单栏）切开下移腾出空间，背景、色块、表格边框连续；放不下时整栏等比缩小（不低于 75%），输出 `<原名>_双语.pdf`。
-- 标题、正文要点、表格单元格、图片里的英文标注、公式逐条补中文；自带渲染检查（中文过小、出界、重叠、压图、压线）。
+- 标题、正文要点、表格单元格、图片里的英文标注、公式逐条补中文；自带渲染检查（中文过小、出界、重叠、笔画相碰、压图、压线）。
 
 可在 **Claude Code**、**Codex**、**DeepSeek Harness** 中使用。
 
@@ -22,7 +22,7 @@ cp -r pdf_translate/pptx-add-zh-translation ~/.claude/skills/      # Claude Code
 
 - Python 3 + `lxml`（PPTX 模式）
 - `pymupdf`（PDF 模式；PPTX 模式下可选，用于更准确的渲染检查）
-- 渲染 PPTX：macOS 上的 Microsoft PowerPoint，或 LibreOffice / DeepSeek Harness 内置的 LibreOffice Kit
+- 渲染 PPTX：macOS 上的 Microsoft PowerPoint、WPS（`wpscli`），或 LibreOffice / DeepSeek Harness 内置的 LibreOffice Kit
 
 DeepSeek Harness 自带的 Python 没有 PyMuPDF：PDF 脚本会自动改用系统里装有 PyMuPDF 的 `python3`，也可以设置 `PPTX_ZH_PDF_PY=/path/to/python3`。
 

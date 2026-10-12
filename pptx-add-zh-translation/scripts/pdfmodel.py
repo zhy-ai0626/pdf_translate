@@ -144,7 +144,9 @@ def paragraphs(page):
     """Group rendered lines into paragraphs. Ids P1..Pn follow content order."""
     paras = []
     prev = None
-    for ln in _merge_bullets(_lines(page)):
+    lines = _merge_bullets(_lines(page))
+    right = max((ln["bbox"][2] for ln in lines), default=0)
+    for ln in lines:
         if abs(ln["dir"][1]) > 0.1:  # rotated text: own paragraph
             cont = False
         elif prev is None:
@@ -156,12 +158,21 @@ def paragraphs(page):
             same_line = abs(ln["bbox"][1] - p["bbox"][1]) < 0.3 * p["size"] and 0 <= ln["bbox"][0] - p["bbox"][2] < 2 * p["size"]
             # a line starting exactly at the text start of a bullet line above is its wrapped continuation,
             # even when the deck uses loose line spacing
-            hanging = paras[-1]["bullet"] and abs(ln["bbox"][0] - paras[-1]["row_x"][1]) < 0.3 * p["size"] \
-                and abs(ln["bbox"][0] - paras[-1]["row_x"][0]) > 0.3 * p["size"]
-            cont = (not ln["bullet"] and ln["block"] - p["block"] <= 1 and abs(ln["size"] - p["size"]) < 0.6
-                    and ((-0.4 * p["size"] < gap < 0.3 * p["size"] and min(abs(ln["bbox"][0] - x) for x in paras[-1]["row_x"]) < 0.6 * p["size"])
-                         or (hanging and -0.4 * p["size"] < gap < 0.9 * p["size"])
-                         or same_line))
+            P0 = paras[-1]
+            hanging = P0["bullet"] and abs(ln["bbox"][0] - P0["tx"]) < 0.3 * p["size"] \
+                and abs(P0["lines"][0]["bbox"][0] - P0["tx"]) > 0.3 * p["size"]
+            if hanging and len(P0["lines"]) > 1:  # 3rd+ line: only while the sentence is still open
+                hanging = not re.search(r"[.!?:;。！？：；]$", P0["text"]) or ln["text"][:1].islower()
+            # loose line spacing without a text bullet (picture bullets such as a tick): a line that runs to the
+            # right margin mid-sentence, followed by a lowercase line at the same x, is still the same sentence
+            wrapped = (p["bbox"][2] > right - 4 * p["size"] and p["bbox"][2] - p["bbox"][0] > 0.4 * page.rect.width and not re.search(r"[.!?:;。！？：；]$", p["text"])
+                       and ln["text"][:1].islower() and abs(ln["bbox"][0] - p["bbox"][0]) < 0.6 * p["size"])
+            cont = (not ln["bullet"] and ln["block"] - p["block"] <= 3 and abs(ln["size"] - p["size"]) < 0.6
+                    and ((ln["block"] - p["block"] <= 1 and -0.4 * p["size"] < gap < 0.3 * p["size"]
+                          and min(abs(ln["bbox"][0] - x) for x in paras[-1]["row_x"]) < 0.6 * p["size"])
+                         or (ln["block"] - p["block"] <= 1 and hanging and -0.4 * p["size"] < gap < 0.9 * p["size"])
+                         or (wrapped and -0.4 * p["size"] < gap < 0.9 * p["size"])
+                         or (ln["block"] - p["block"] <= 1 and same_line)))
         if cont:
             P = paras[-1]
             if not same_line:

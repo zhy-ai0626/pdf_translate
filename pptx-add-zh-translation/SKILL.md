@@ -24,11 +24,11 @@ description: 在英文课件的原页面上补充中文翻译（同页双语，�
 
 | Harness | Python（下文 PY） | 渲染器（`render_check.py --renderer`） |
 |---|---|---|
-| Claude Code | `python3`（需 lxml；有 pymupdf 时检查最准） | `auto`：macOS 有 PowerPoint 就用它 |
-| Codex | `python3`；调用 PowerPoint 的 `osascript` 需要申请沙箱外执行/GUI 自动化授权 | `auto`；授权被拒时用 `soffice` 或 `none` |
+| Claude Code | `python3`（需 lxml；有 pymupdf 时检查最准） | `auto`：PowerPoint → WPS（`wpscli`）→ LibreOffice |
+| Codex | `python3`；调用 PowerPoint 的 `osascript` 需要申请沙箱外执行/GUI 自动化授权 | `auto`；授权被拒时用 `wps`（纯命令行，不需 GUI 授权）或 `soffice` |
 | DeepSeek Harness | 调 `load_workspace_dependencies`，用它返回的 Python（自带 lxml，无 PyMuPDF）。**不要 pip 安装** | `lok`：内置 LibreOffice Kit。把已加载 office 技能里 *Installed LibreOffice Kit* 的 node / cli 路径传给 `--lok-node --lok-cli`（macOS 上不传会自动找 DSH 安装目录）。用户明确要求才改用 PowerPoint |
 
-没有 PyMuPDF 时：`render_check.py` 仍导出 PDF，PNG 由 LibreOffice Kit 生成，版面检查改为**按 XML 估算**（输出 `check mode: estimated-from-xml`，误差约 10–20pt：估算的 error 要对照 PNG 确认，不能直接当成真问题）；`layout_hints.py` 直接传原稿 `.pptx`。LibreOffice 缺 Consolas 等字体，版面只是近似。
+没有 PyMuPDF 时：`render_check.py` 仍导出 PDF，PNG 由 LibreOffice Kit 生成，版面检查改为**按 XML 估算**（输出 `check mode: estimated-from-xml`，误差约 10–20pt：估算的 error 要对照 PNG 确认，不能直接当成真问题）；`layout_hints.py` 直接传原稿 `.pptx`。LibreOffice 缺 Consolas 等字体，版面只是近似。WPS 渲染接近 PowerPoint，但个别页行距、换行不同；用户用 WPS 看课件时以 `--renderer wps` 为准。**PDF 模式不需要任何渲染器**（render_check 直接查 PDF），不要去找 lok。
 
 ## 工具
 
@@ -47,7 +47,7 @@ python-pptx 打不开含 `mc:AlternateContent`/OLE 的课件（`has_ph_elm` 报�
 
 1. **确认范围**：哪个文件、哪些页（默认全部）、是否先做样稿。原稿有大量已有中文、动画、视频时先告诉用户。
 2. **盘点**：`inventory.py` 全册跑一次；`render_check.py` 渲染原稿，再用 `layout_hints.py` 从它的 PDF 生成位置提示。图片里的英文、公式内容从 PNG 或已有的逐页视觉笔记中获取。记下原稿本来就有的问题（检查结果里的 `warn(pre-existing?)`），不要把它们算成自己造成的。
-3. **术语表**：读已有中文页，沿用里面的译法；把本课件新出现的术语补进术语表（fault/error/failure 等易混词要区分）。
+3. **术语表**：读已有中文页，沿用里面的译法；把本课件新出现的术语补进术语表（fault/error/failure 等易混词要区分）。写回规则：只收学科术语，不收例子里的普通词（food quality、economist）；来源列写讲次和页码（`L4 p12`），按讲分节；易混词必须写“区别”。
 4. **分批写计划**：每批约 8–10 页，一页一个 entry。逐页对照 `inventory.md` 和该页 PNG：
    - 每个英文段落/单元格 → `para_after` / `inline` / `cells` / `textbox`；
    - 图片里的英文 → 在附近加 `textbox` 标注（从 PNG 估坐标：PNG 像素 × 72 / dpi = pt）；
@@ -55,7 +55,7 @@ python-pptx 打不开含 `mc:AlternateContent`/OLE 的课件（`has_ph_elm` 报�
    - 用户不要求看图时：图片标注不放进图里，改为在图片旁空白处加一个"图中：English 中文；…"说明框。
    - 页数多时可以按批分给子代理并行写计划（每份计划只含自己的页），最后合并成一份再应用；渲染只能串行（PowerPoint 只有一个实例）。没有子代理的 harness 就按批顺序做。
 5. **应用 + 渲染 + 看图**：`apply_plan.py` 后 `uncovered:` 必须为空（或已 skip）；`render_check.py` 的 error 必须为 0；然后**打开每个改动过的页的 PNG 亲眼看**（检查器只管几何，不管"中文是不是对着正确的英文""公式是否和要点对齐"）。有问题改计划，重新从原稿应用。
-6. **交付**：输出双语文件 + 简短报告：处理页数、每页 error/warning 结论、跳过了什么及原因、需要用户人工决定的页（放不下、动画页、视频页）。报告只写核实过的事：哪些页看过 PNG、哪些只过了检查器，要分开说；译文离原文较远或有遮挡风险的页单独列出。
+6. **交付**：输出双语文件 + 简短报告：处理页数、每页 error/warning 结论、跳过了什么及原因、需要用户人工决定的页（放不下、动画页、视频页、译文放在英文上方或用汇总框代替逐条的页）。报告只写核实过的事：哪些页看过 PNG、哪些只过了检查器，要分开说；译文离原文较远或有遮挡风险的页单独列出。
 
 ## 控制上下文和 token（整册 30 页以上时很重要）
 
@@ -65,6 +65,7 @@ python-pptx 打不开含 `mc:AlternateContent`/OLE 的课件（`has_ph_elm` 报�
 - **inventory 按批读**：全册只跑一次；它结尾打印每页在 `inventory.md` 里的行号范围，写哪一批就用 offset/limit 读哪一段。英文原文已经完整在里面，不要再另外导出一份文本。
 - **看图有选择**：原稿 PNG 只看有图片、`box`、`no cut` 或 SCANNED 的页（纯文字页 inventory 足够）。应用后每个改动过的页看一次；之后只重看又改过的页。交付前的整册检查看 `render_check.py` 的输出，不必把看过且没再改的页重看一遍。
 - **有子代理就按批分出去**：每批 8–10 页交给一个子代理，让它在自己的上下文里完成"读 inventory 片段 → 写 `plan_bN.json` → 应用 → 检查 → 看图 → 修到 0 error"，只把计划文件路径、遗留问题和 skip 列表交回来。主会话只负责术语表、分批、最后合并应用（`pdf_apply.py … --merge`）和报告。把本节、术语表路径和要读的 references 路径写进给子代理的任务说明。
+- 同时运行的子代理不超过 7 个（DSH 上限 8，含主会话会报 `ACTIVATION_LIMIT_REACHED`）；批目录和计划文件名带课件短名（`L4_b3/plan.json`），同时做几份课件也不会冲突。子代理完成会自动通知，不要 `sleep` 轮询；macOS 没有 `timeout` 命令，路径有空格要加引号。
 - **一页连改 3 轮还有 error**：换做法（见 pdf-mode.md"两类容易排坏的页"）或记为"需人工决定"，不要继续微调坐标。
 - 先写完再想：中文框的坐标从 inventory 的 bbox / free / right 数值直接算，不需要逐个推演脚本会怎么排——排错了检查器会报。
 
@@ -74,5 +75,6 @@ python-pptx 打不开含 `mc:AlternateContent`/OLE 的课件（`has_ph_elm` 报�
 - 标题框通常是底部对齐，往标题里加段落会把英文往上顶；标题中文用独立 `textbox` 放在英文标题右侧同一行（右侧空间不够就放标题下方并把标题上移）。
 - 表格加中文后行变高会超出页面：先 `table_box` 加宽表格（减少换行），再 `table_scale` 缩英文，最后才缩中文。
 - 按段落播放动画的形状（inventory 标 `PARA-ANIMATED`）不能插段落，否则动画错位——改用 `textbox`，并告诉用户这些中文不会随动画出现。
+- PowerPoint 有沙盒：`render_check.py` 已把输入和导出放在 `~/Library/Containers/com.microsoft.Powerpoint/Data/tmp/pptx_zh/` 里中转，再把 PDF 移到 out_dir，所以输出目录放在任何位置都不会弹「授予文件访问权限」。不要绕过 render_check 直接用 osascript 调 PowerPoint 导出。
 - 隐藏页 PowerPoint 默认不导出，`render_check.py` 已自动取消隐藏（仅渲染副本），所以 PDF 第 N 页 = 第 N 张幻灯片。
 - 视频页只翻译可见文字，不要编造视频内容。

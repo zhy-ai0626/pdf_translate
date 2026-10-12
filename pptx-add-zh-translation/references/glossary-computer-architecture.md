@@ -67,3 +67,35 @@
 | clock rate | 时钟频率 | 样稿 p73 |
 | cycles per instruction (CPI) | 每条指令周期数（CPI） | 样稿 p73 |
 | instruction count | 指令条数 | 样稿 p73 |
+
+## 定律与数据表示（第 1 章 Part 2 新增）
+
+| English | 中文 | 来源 |
+|---|---|---|
+| Moore's law | 摩尔定律 | Part2 p4 |
+| Amdahl's law | 阿姆达尔定律 | Part2 p2 |
+| speedup | 加速比 | Part2 |
+| fraction enhanced / speedup enhanced | 可改进部分占比 / 改进部分加速比 | Part2 |
+| overall speedup | 总加速比 | Part2 |
+| data representation | 数据表示 | Part2 p2 |
+| bit / byte / word | 位（比特）/ 字节 / 字 | Part2 |
+| binary / octal / decimal / hexadecimal | 二进制 / 八进制 / 十进制 / 十六进制 | Part2 |
+| radix / base | 基数 | Part2 |
+| sign-magnitude | 原码（符号-数值表示） | Part2 |
+| one's complement / two's complement | 反码 / 补码 | Part2 |
+| floating point / fixed point | 浮点数 / 定点数 | Part2 |
+| exponent / mantissa (significand) | 指数（阶码）/ 尾数 | Part2 |
+| overflow | 溢出 | Part2 |
+| character encoding / ASCII / Unicode | 字符编码 / ASCII / Unicode（缩写保留） | Part2 |
+| MSB / LSB | 最高有效位（MSB）/ 最低有效位（LSB） | Part2 |
+| parallelism / parallelizable / parallelization factor | 并行性 / 可并行化 / 并行化因子 | Part2 p11-p27 |
+| multicore / MIC / GPU | 多核 / 众核（MIC）/ 图形处理单元（GPU） | Part2 p15 |
+| pipelining / superscalar | 流水线 / 超标量 | Part2 |
+| power density / diminishing returns | 功率密度 / 收益递减 | Part2 |
+| latency / throughput | 延迟 / 吞吐量 | Part2 |
+| main memory / cache | 主存 / 高速缓存（cache） | Part2 p11 |
+| number system / positional number system | 数制 / 位置计数系统 | Part2 p33, p43 |
+| word length / carry / borrow | 字长 / 进位 / 借位 | Part2 |
+| bit pattern / coding scheme | 位模式 / 编码方案 | Part2 p42 |
+| control character / printable character | 控制字符 / 可打印字符 | Part2 p49-51 |
+| bitmap / vector image / bit depth / frame | 位图 / 矢量图像 / 位深度 / 帧 | Part2 p52-53 |

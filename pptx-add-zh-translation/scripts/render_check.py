@@ -1,10 +1,11 @@
 """Render a deck, rasterize pages and check the layout of the Chinese text.
 
 Usage: python3 render_check.py deck.pptx out_dir [--pages 4,9] [--min-pt 12] [--dpi 110]
-       [--renderer auto|powerpoint|lok|soffice|none] [--lok-node N --lok-cli C]
+       [--renderer auto|powerpoint|wps|lok|soffice|none] [--lok-node N --lok-cli C]
        python3 render_check.py bilingual.pdf out_dir [--pages ...]   (PDF mode: checks the PDF itself)
 
 Renderers (auto order): Microsoft PowerPoint via AppleScript (macOS, most faithful);
+WPS Office command line `wpscli ppt2pdf` (macOS, close to PowerPoint, no GUI automation);
 DeepSeek Harness' bundled LibreOffice Kit (pass --lok-node/--lok-cli, or env
 PPTX_ZH_LOK_NODE / PPTX_ZH_LOK_CLI, or auto-detected in the DSH app bundle);
 system soffice. LibreOffice layout is approximate (fonts such as Consolas may be missing).
@@ -41,6 +42,9 @@ DSH_APP = Path("/Applications/DeepSeek Harness.app/Contents/Resources")
 DSH_NODE = DSH_APP / "runtime/primary-runtime/dependencies/node/bin/node"
 DSH_CLI = DSH_APP / "app.asar.unpacked/dsh/node_modules/@deepseek-ai/libreoffice-kit/lib/cli.js"
 POWERPOINT = Path("/Applications/Microsoft PowerPoint.app")
+PP_STAGE = Path.home() / "Library/Containers/com.microsoft.Powerpoint/Data/tmp/pptx_zh"
+WPSCLI = Path("/Applications/wpsoffice.app/Contents/MacOS/wpscli")
+WPS_STAGE = Path.home() / "Library/Containers/com.kingsoft.wpsoffice.mac/Data/tmp/pptx_zh"
 
 
 def unhidden_copy(src, dst):
@@ -73,14 +77,41 @@ def run_lok(lok, *args):
 
 
 def export_pdf(pptx, pdf, a):
-    order = [a.renderer] if a.renderer != "auto" else ["powerpoint", "lok", "soffice"]
+    order = [a.renderer] if a.renderer != "auto" else ["powerpoint", "wps", "lok", "soffice"]
     for kind in order:
         if kind == "powerpoint" and sys.platform == "darwin" and POWERPOINT.exists():
-            r = subprocess.run(["osascript", str(HERE / "export_pdf.applescript"), str(pptx), str(pdf)],
-                               capture_output=True, text=True, timeout=400)
-            if r.returncode == 0 and pdf.exists():
-                return "powerpoint"
-            print("PowerPoint export failed:", r.stderr.strip(), file=sys.stderr)
+            # PowerPoint is sandboxed: folders outside its container trigger a "grant file access" dialog,
+            # so stage input and output inside the container and move the PDF out afterwards.
+            PP_STAGE.mkdir(parents=True, exist_ok=True)
+            stage = Path(tempfile.mkdtemp(prefix="zhrender_", dir=PP_STAGE))
+            s_in, s_out = stage / "render_input.pptx", stage / "render_output.pdf"
+            try:
+                shutil.copyfile(pptx, s_in)
+                r = subprocess.run(["osascript", str(HERE / "export_pdf.applescript"), str(s_in), str(s_out)],
+                                   capture_output=True, text=True, timeout=400)
+                if r.returncode == 0 and s_out.exists():
+                    shutil.move(str(s_out), str(pdf))
+                    return "powerpoint"
+                print("PowerPoint export failed:", r.stderr.strip(), file=sys.stderr)
+            finally:
+                shutil.rmtree(stage, ignore_errors=True)
+        elif kind == "wps" and WPSCLI.exists():
+            # wpscli is sandboxed too: it can only read/write inside the WPS container
+            WPS_STAGE.mkdir(parents=True, exist_ok=True)
+            stage = Path(tempfile.mkdtemp(prefix="zhrender_", dir=WPS_STAGE))
+            s_in, s_out = stage / "render_input.pptx", stage / "render_output.pdf"
+            try:
+                shutil.copyfile(pptx, s_in)
+                r = subprocess.run([str(WPSCLI), "ppt2pdf", str(s_in), "-o", str(s_out), "--json"],
+                                   capture_output=True, text=True, timeout=400)
+                if r.returncode == 0 and s_out.exists():
+                    shutil.move(str(s_out), str(pdf))
+                    return "wps (close to PowerPoint)"
+                print("WPS export failed:", (r.stdout + r.stderr).strip()[-300:], file=sys.stderr)
+            except (OSError, subprocess.TimeoutExpired) as e:
+                print("WPS export failed:", e, file=sys.stderr)
+            finally:
+                shutil.rmtree(stage, ignore_errors=True)
         elif kind == "lok" and lok_paths(a):
             try:
                 info = run_lok(lok_paths(a), "convert", "--input", str(pptx), "--output", str(pdf))
@@ -147,6 +178,28 @@ def zh_on_content(page, zh_lines, dpi=110):
     return hits
 
 
+def ink_touches(page, a, b):
+    """Two text lines whose boxes overlap: is there a blank pixel row between their glyphs?
+    No blank row -> the glyphs touch (e.g. Chinese on the descenders of the English line above)."""
+    up, lo = (a, b) if a["raw"][1] <= b["raw"][1] else (b, a)
+    x0, x1 = max(up["raw"][0], lo["raw"][0]), min(up["raw"][2], lo["raw"][2])
+    y0 = (up["raw"][1] + up["raw"][3]) / 2
+    y1 = (lo["raw"][1] + lo["raw"][3]) / 2
+    if x1 - x0 < 2 or y1 - y0 < 1:
+        return x1 - x0 >= 2
+    pix = page.get_pixmap(clip=pymupdf.Rect(x0, y0, x1, y1), dpi=288, colorspace=pymupdf.csGRAY)
+    w, h, buf = pix.width, pix.height, pix.samples
+    counts = [0] * 256
+    for v in buf:
+        counts[v] += 1
+    bg = counts.index(max(counts))  # most common grey = background
+    for r in range(h):
+        row = buf[r * w:(r + 1) * w]
+        if all(abs(v - bg) < 60 for v in row):
+            return False
+    return True
+
+
 def check_page(page, min_pt, strict_lines=False):
     W, H = page.rect.width, page.rect.height
     lines = []
@@ -186,7 +239,10 @@ def check_page(page, min_pt, strict_lines=False):
                 level = "error" if (a["zh"] or b["zh"]) else "warn(pre-existing?)"
                 issues.append({"level": level, "type": "text_overlap", "a": a["text"][:50], "b": b["text"][:50]})
             elif (a["zh"] or b["zh"]) and a["block"] != b["block"] and inter(a["raw"], b["raw"]) > 0:
-                issues.append({"level": "warn", "type": "tight", "a": a["text"][:50], "b": b["text"][:50]})
+                if ink_touches(page, a, b):
+                    issues.append({"level": "error", "type": "glyphs_touch", "a": a["text"][:50], "b": b["text"][:50]})
+                else:
+                    issues.append({"level": "warn", "type": "tight", "a": a["text"][:50], "b": b["text"][:50]})
     imgs = [im["bbox"] for im in page.get_image_info()
             if 400 < area(im["bbox"]) < 0.6 * W * H]  # skip slide backgrounds
     clear = []
@@ -217,7 +273,7 @@ def main():
     ap.add_argument("--min-pt", type=float, default=12)
     ap.add_argument("--dpi", type=int, default=110)
     ap.add_argument("--pdf", type=Path, help="reuse an already exported PDF")
-    ap.add_argument("--renderer", default="auto", choices=["auto", "powerpoint", "lok", "soffice", "none"])
+    ap.add_argument("--renderer", default="auto", choices=["auto", "powerpoint", "wps", "lok", "soffice", "none"])
     ap.add_argument("--lok-node")
     ap.add_argument("--lok-cli")
     a = ap.parse_args()
@@ -234,7 +290,7 @@ def main():
         if how:
             print("rendered with", how)
         else:
-            print("no renderer available (PowerPoint / DSH LibreOffice Kit / soffice); geometry is estimated only")
+            print("no renderer available (PowerPoint / WPS / DSH LibreOffice Kit / soffice); geometry is estimated only")
             pdf = None
     deck = Deck(str(a.deck))
     total = len(deck.slides)
