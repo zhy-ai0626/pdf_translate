@@ -65,7 +65,7 @@ def code_line(line, mono=False):
 def looks_like_code(lines, mono=False):
     """lines: the visual lines of one paragraph (PPTX: split at <a:br/>; PDF: rendered lines).
     mono: all of the text is in a monospace font."""
-    lines = [ln.strip() for ln in lines if ln.strip()]
+    lines = [ln.strip() for ln in lines if ln.strip() and not re.fullmatch(r"\s*<!--.*-->\s*", ln)]  # page markers
     if not lines or any(prose(ln) and not re.match(r"^(//|/\*|#\s)", ln) for ln in lines):
         return False  # a sentence in it (e.g. a title merged with the first code line) needs Chinese
     # monospace alone is not enough (some decks set explanations in Consolas); it only adds MONO_RE
@@ -81,8 +81,9 @@ def code_runs(items, same):
 
     def flush():
         if len(run) >= 3 and sum(x["kind"] == "code" for x in run) >= 0.3 * len(run):
-            for x in run:
-                if x["kind"] == "en":
+            for x in run:  # only lines with digits/symbols: a plain label such as "Expected output" keeps its Chinese
+                sentence = len(PROSE_WORD.findall(x["text"])) >= 3 and x["text"].rstrip(" )\"'").endswith(".")
+                if x["kind"] == "en" and not sentence and re.search(r"[0-9\\'\"(){}\[\];=<>*&|$#%_/.+-]", x["text"].rstrip(":")):
                     x["kind"] = "code"
         run.clear()
     for x in items:

@@ -1,6 +1,6 @@
 ---
 name: pptx-add-zh-translation
-description: 在英文课件的原页面上补充中文翻译（同页双语，保留英文，不是把英文替换成中文）。支持 PPTX，也支持只有 PDF 的课件（输出双语 PDF，英文保持矢量）。标题、正文要点、表格单元格、图片里的英文标注、公式都逐条补中文；必要时小幅移动/缩小原元素；输出双语文件并渲染检查遮挡和溢出（可在 Claude Code、Codex、DeepSeek Harness 中运行）。用户说"给 PPT/PDF 课件加中文翻译""双语课件""在英文幻灯片上加中文""中英对照""翻译课件但保留英文"时使用，即使没说 skill 名字。不用于：整份替换成中文、Word 文档或普通 PDF 文章/论文翻译、新建幻灯片。
+description: 在英文课件的原页面上补充中文翻译（同页双语，保留英文，不是把英文替换成中文）。支持 PPTX，也支持只有 PDF 的课件（输出双语 PDF，英文保持矢量），以及英文 Word（.docx）和 Markdown（.md）文档（逐段在英文后补中文）。标题、正文要点、表格单元格、图片里的英文标注、公式都逐条补中文；必要时小幅移动/缩小原元素；输出双语文件并渲染检查遮挡和溢出（可在 Claude Code、Codex、WorkBuddy、DeepSeek Harness 中运行）。用户说"给 PPT/PDF 课件加中文翻译""双语课件""在英文幻灯片上加中文""中英对照""翻译课件但保留英文""给这个 Word/docx/md 加中文翻译""双语文档"时使用，即使没说 skill 名字。不用于：整份替换成中文、普通 PDF 文章/论文翻译、新建幻灯片或文档。
 ---
 
 # 在英文幻灯片上补充中文翻译
@@ -8,6 +8,8 @@ description: 在英文课件的原页面上补充中文翻译（同页双语，�
 目标：学生打开原英文课件，每一条英文旁边/下面都能看到对应的中文，版面不乱。
 
 **输入是 PDF 时**：先问有没有原始 PPTX（效果更好）；没有就读 `references/pdf-mode.md` 走 PDF 模式。下面的规则、术语、流程同样适用，计划格式和工具换成 PDF 版。
+
+**输入是 Word（.docx）或 Markdown（.md）时**：读 `references/doc-mode.md` 走文档模式（`doc_inventory.py` / `doc_apply.py`，Word 用 `doc_render.py` 看版面）。文档会自动重排，没有坐标和缩字；规则 1、3、4、6 和术语表照常适用，规则 2、5 和下面的版面检查、渲染器不适用。Word 的 PDF 导出件优先要原 .docx。
 
 ## 不可违反的规则
 
@@ -28,6 +30,7 @@ description: 在英文课件的原页面上补充中文翻译（同页双语，�
 | Claude Code | `python3`（需 lxml；有 pymupdf 时检查最准） | `auto`：WPS（`wpscli`）→ PowerPoint → LibreOffice |
 | Codex | `python3`；调用 PowerPoint 的 `osascript` 需要申请沙箱外执行/GUI 自动化授权 | `auto`（先用 WPS，纯命令行，不需 GUI 授权）；都不行用 `soffice` |
 | DeepSeek Harness | 调 `load_workspace_dependencies`，用它返回的 Python（自带 lxml，无 PyMuPDF）。**不要 pip 安装** | `lok`：内置 LibreOffice Kit。把已加载 office 技能里 *Installed LibreOffice Kit* 的 node / cli 路径传给 `--lok-node --lok-cli`（macOS 上不传会自动找 DSH 安装目录）。用户明确要求才改用 PowerPoint |
+| WorkBuddy | `python3`（需 lxml；有 pymupdf 时检查最准） | `auto`（WPS 优先） |
 
 没有 PyMuPDF 时：`render_check.py` 仍导出 PDF，PNG 由 LibreOffice Kit 生成，版面检查改为**按 XML 估算**（输出 `check mode: estimated-from-xml`，误差约 10–20pt：估算的 error 要对照 PNG 确认，不能直接当成真问题）；`layout_hints.py` 直接传原稿 `.pptx`。LibreOffice 缺 Consolas 等字体，版面只是近似。默认以 WPS 渲染为准（用户用 WPS 看课件）；WPS 和 PowerPoint 个别页行距、换行不同，用户说要在 PowerPoint 里放映时加 `--renderer powerpoint` 复查。**PDF 模式不需要任何渲染器**（render_check 直接查 PDF），不要去找 lok。
 
