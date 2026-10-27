@@ -15,7 +15,8 @@ from lxml import etree
 
 from ooxml import (EMU_PER_PT, NS, Deck, deep, has_cjk, iter_shapes, own_xfrm,
                    para_text, q, resolve_box, resolve_para, shape_id)
-from inventory import para_animated_ids
+from codetext import looks_like_code
+from inventory import para_animated_ids, para_is_code
 
 DEFAULTS = {"scale": 0.75, "title_scale": 0.5, "cell_scale": 0.85, "min_pt": 12,
             "color": None, "ea_font": None, "name_prefix": "ZH "}
@@ -336,14 +337,19 @@ def coverage(deck, n, slide, ops, ctx):
                 nxt = ps[i + 1] if i + 1 < len(ps) else None
                 if nxt is not None and (nxt in ctx["inserted"] or mostly_zh(para_text(nxt))):
                     continue
+                ppr = p.find("a:pPr", NS)
+                if para_is_code(deck, n, shape, p, int(ppr.get("lvl", 0)) if ppr is not None else 0):
+                    continue  # code / program output stays untranslated
                 num = orig[sid].index(p) if sid in orig and p in orig[sid] else i
                 missing.append({"shape": sid, "p": num, "text": t})
         tbl = shape.find(".//a:tbl", NS)
         if tbl is not None:
             for r, tr in enumerate(tbl.findall("a:tr", NS)):
                 for c, tc in enumerate(tr.findall("a:tc", NS)):
-                    t = " ".join(para_text(p) for p in tc.iter(q("a:p")))
-                    if t.strip() and not has_cjk(t) and not TRIVIAL.match(t) and (sid, "r%dc%d" % (r, c)) not in covered:
+                    cps = [para_text(p) for p in tc.iter(q("a:p"))]
+                    t = " ".join(cps)
+                    if t.strip() and not has_cjk(t) and not TRIVIAL.match(t) and (sid, "r%dc%d" % (r, c)) not in covered \
+                            and not looks_like_code(cps):
                         missing.append({"shape": sid, "cell": [r, c], "text": t})
     return missing
 

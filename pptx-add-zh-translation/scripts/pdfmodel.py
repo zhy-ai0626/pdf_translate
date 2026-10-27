@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import sys
 
+from codetext import code_runs, is_mono, looks_like_code
+
 PUA = re.compile(r"^[-•▪◦●■□◆◇►▶➢➤✓✔\-–—·*]+\s*")
 WORD = re.compile(r"[A-Za-z]{2,}")
 CJK = re.compile(r"[㐀-鿿豈-﫿]")
@@ -195,6 +197,12 @@ def paragraphs(page):
             P["color"] = max(tally, key=tally.get)
         t = P["text"]
         P["kind"] = "zh" if has_cjk(t) else ("en" if WORD.search(t) else "misc")
+        if P["kind"] == "en" and looks_like_code([ln["text"] for ln in P["lines"]],
+                                                 mono=all(is_mono(ln["font"]) for ln in P["lines"])):
+            P["kind"] = "code"  # code / command / program output: stays as it is
+    code_runs(paras, lambda a, b: len(a["lines"]) == len(b["lines"]) == 1 and not a["bullet"] and not b["bullet"]
+              and a["font"] == b["font"] and abs(a["size"] - b["size"]) < 0.6
+              and 0 <= b["bbox"][1] - a["bbox"][3] < 3.5 * a["size"])  # a blank line apart at most
     return paras
 
 

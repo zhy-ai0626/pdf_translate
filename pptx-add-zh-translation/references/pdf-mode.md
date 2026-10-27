@@ -25,7 +25,7 @@ PDF 模式不需要 PowerPoint / WPS / LibreOffice：`render_check.py` 直接用
 | `PY <skill>/scripts/pdf_apply.py in.pdf plan.json out.pdf --report rep.json [--merge b2.json b3.json]` | 应用计划，每页打印中文框数、英文缩放、error 和 `uncovered:`。`--merge` 把其他批次的计划一起应用（不用手工合并 JSON）。报告是 list，每页一项 |
 | `PY <skill>/scripts/render_check.py out.pdf chk/ [--pages ...]` | 直接检查 PDF：中文过小、出界、与英文重叠、压图（`zh_on_image`）、**压线（`zh_on_line`：表格线、图框边线、色块边缘从中文中间穿过）**；导出 PNG |
 
-种类 `kind`：`en` 要翻译；`zh` 是已有中文；`footer` 是页脚区英文（可不译）；`misc` 是数字/符号。没有文字层（扫描件、整页是图）的页标 `SCANNED/IMAGE-ONLY`：从 PNG 读英文，全部用 `textbox`（坐标 pt = 像素 × 72 / dpi，默认 dpi 110）。
+种类 `kind`：`en` 要翻译；`zh` 是已有中文；`code` 是代码/命令/程序输入输出（原样保留，不要加中文，也不算 uncovered；连续短行里有 30% 以上是代码时整块都标 `code`）；`footer` 是页脚区英文（可不译）；`misc` 是数字/符号。没有文字层（扫描件、整页是图）的页标 `SCANNED/IMAGE-ONLY`：从 PNG 读英文，全部用 `textbox`（坐标 pt = 像素 × 72 / dpi，默认 dpi 110）。
 
 ## 计划 plan.json
 

@@ -11,6 +11,8 @@ from pathlib import Path
 
 from lxml import etree
 
+from codetext import is_mono, looks_like_code
+from estimate import para_font
 from ooxml import (NS, Deck, has_cjk, iter_shapes, para_text, q, resolve_box,
                    resolve_para, shape_id)
 
@@ -41,6 +43,30 @@ def para_animated_ids(slide):
     return ids
 
 
+def para_is_code(deck, number, shape, p, level):
+    """Code / command / program output paragraph: it stays as it is, no Chinese needed."""
+    lines, cur, faces = [], "", []
+    inherited = None
+    for el in p:
+        tag = etree.QName(el).localname
+        if tag == "br":
+            lines.append(cur)
+            cur = ""
+        elif tag in ("r", "fld"):
+            text = "".join(t.text or "" for t in el.iter(q("a:t")))
+            cur += text
+            if text.strip():
+                latin = el.find("a:rPr/a:latin", NS)
+                if latin is not None and latin.get("typeface"):
+                    faces.append(latin.get("typeface"))
+                else:
+                    if inherited is None:
+                        inherited = para_font(deck, number, shape, p, level)
+                    faces.append(inherited)
+    lines.append(cur)
+    return looks_like_code(lines, mono=bool(faces) and all(is_mono(f) for f in faces))
+
+
 def slide_record(deck, number):
     slide = deck.slide(number)
     animated = para_animated_ids(slide)
@@ -62,8 +88,9 @@ def slide_record(deck, number):
                 if not text.strip():
                     continue
                 st = resolve_para(deck, number, shape, p)
-                paras.append({"p": i, "lvl": st["level"], "sz_pt": st["sz"] / 100,
-                              "zh": has_cjk(text), "text": text})
+                zh = has_cjk(text)
+                paras.append({"p": i, "lvl": st["level"], "sz_pt": st["sz"] / 100, "zh": zh,
+                              "code": not zh and para_is_code(deck, number, shape, p, st["level"]), "text": text})
             if not paras:
                 continue
             rec["paragraphs"] = paras
@@ -76,7 +103,9 @@ def slide_record(deck, number):
                 for c, tc in enumerate(tr.findall("a:tc", NS)):
                     text = " / ".join(para_text(p) for p in tc.iter(q("a:p")) if para_text(p).strip())
                     if text.strip():
-                        cells.append({"r": r, "c": c, "zh": has_cjk(text), "text": text})
+                        zh = has_cjk(text)
+                        cells.append({"r": r, "c": c, "zh": zh, "text": text,
+                                      "code": not zh and looks_like_code(text.split(" / "))})
             rec["table_cells"] = cells
             shapes.append(rec)
         else:
@@ -96,7 +125,9 @@ def slide_record(deck, number):
 
 def to_markdown(deck, records):
     lines = ["# Inventory: %s" % Path(deck.path).name,
-             "slide size %.0fx%.0f pt; box = [x, y, w, h] pt" % (deck.width_pt, deck.height_pt), ""]
+             "slide size %.0fx%.0f pt; box = [x, y, w, h] pt; ZH = existing Chinese; "
+             "CODE = code / command / program output (keep as is, no Chinese needed)" % (deck.width_pt, deck.height_pt), ""]
+    mark = lambda x: " ZH" if x["zh"] else " CODE" if x.get("code") else ""
     for rec in records:
         flags = [f for f, on in (("HIDDEN", rec["hidden"]), ("has-zh", rec["has_zh"])) if on]
         lines.append("## Slide %d %s" % (rec["slide"], " ".join("[%s]" % f for f in flags)))
@@ -105,9 +136,9 @@ def to_markdown(deck, records):
             anim = " PARA-ANIMATED" if s.get("para_animated") else ""
             lines.append("- %sshape %s `%s` %s box=%s%s" % (tag, s["id"], s["name"], s["placeholder"] or s["kind"], s["box_pt"], anim))
             for p in s.get("paragraphs", []):
-                lines.append("    - p%d L%d %gpt%s: %s" % (p["p"], p["lvl"], p["sz_pt"], " ZH" if p["zh"] else "", p["text"]))
+                lines.append("    - p%d L%d %gpt%s: %s" % (p["p"], p["lvl"], p["sz_pt"], mark(p), p["text"]))
             for c in s.get("table_cells", []):
-                lines.append("    - cell r%d c%d%s: %s" % (c["r"], c["c"], " ZH" if c["zh"] else "", c["text"]))
+                lines.append("    - cell r%d c%d%s: %s" % (c["r"], c["c"], mark(c), c["text"]))
         for o in rec["objects"]:
             lines.append("- object %s `%s` %s box=%s" % (o["id"], o["name"], o["kind"], o["box_pt"]))
         lines.append("")

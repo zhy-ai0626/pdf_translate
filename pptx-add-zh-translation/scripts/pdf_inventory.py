@@ -6,7 +6,8 @@ inventory.md carries the full English text; the printed page index gives each pa
 range in it, so a batch can be read with offset/limit instead of the whole file.
 
 Per page: paragraphs P1..Pn (ids used by the plan) with bbox [x0,y0,x1,y1] in pt,
-font size, kind (en = needs Chinese, zh = existing Chinese, misc = numbers/symbols),
+font size, kind (en = needs Chinese, zh = existing Chinese, code = code/command/program output, kept as is,
+misc = numbers/symbols),
 free space under each paragraph and whether the page can be opened up there
 (clean cut), free space right of the first line, pictures, footer zone.
 Pages with pictures but no text are flagged SCANNED/IMAGE-ONLY: read the PNG.
@@ -40,7 +41,8 @@ def main():
     pages = parse_pages(a.pages, doc.page_count)
     W0, H0 = doc[0].rect.width, doc[0].rect.height
     md = ["# PDF inventory: %s (%d pages, %.0fx%.0f pt)" % (a.pdf.name, doc.page_count, W0, H0), "",
-          "ids P1..Pn are per page; kind en = needs Chinese, zh = existing Chinese, footer = in the footer zone "
+          "ids P1..Pn are per page; kind en = needs Chinese, zh = existing Chinese, code = code / command / program output "
+          "(keep as is, no Chinese needed), footer = in the footer zone "
           "(optional), misc = numbers/symbols. `below: free N` = empty pt under the paragraph; "
           "`cut ok@y` = page can be opened up there, full width; `column cut` = only that column moves "
           "(pdf_apply adds room automatically); "
