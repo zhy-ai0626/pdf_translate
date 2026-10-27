@@ -97,5 +97,39 @@
 | number system / positional number system | 数制 / 位置计数系统 | Part2 p33, p43 |
 | word length / carry / borrow | 字长 / 进位 / 借位 | Part2 |
 | bit pattern / coding scheme | 位模式 / 编码方案 | Part2 p42 |
-| control character / printable character | 控制字符 / 可打印字符 | Part2 p49-51 |
 | bitmap / vector image / bit depth / frame | 位图 / 矢量图像 / 位深度 / 帧 | Part2 p52-53 |
+
+## 指令集架构（第 2 章 Part 1 新增）
+
+| English | 中文 | 来源 |
+|---|---|---|
+| instruction set architecture (ISA) | 指令集架构（ISA） | Ch2 p2 |
+| abstraction | 抽象 | Ch2 p2 |
+| datapath | 数据通路 | Ch2 p3 |
+| control signals | 控制信号 | Ch2 p4 |
+| instruction interpreter | 指令解释器 | Ch2 p4 |
+| assembly language / assembly code | 汇编语言 / 汇编代码 | Ch2 p6, p11 |
+| machine language / machine code | 机器语言 / 机器码 | Ch2 p6, p11 |
+| high-level language | 高级语言 | Ch2 p6 |
+| compiler / assembler / linker | 编译器 / 汇编器 / 链接器 | Ch2 p6 |
+| opcode (operation code) | 操作码（Opcode） | Ch2 p12, p33 |
+| source operand | 源操作数 | Ch2 p12, p34 |
+| result operand / destination | 结果操作数 / 目的操作数 | Ch2 p12, p34 |
+| stack architecture | 堆栈架构 | Ch2 p16, p18 |
+| accumulator architecture | 累加器架构 | Ch2 p16, p21 |
+| memory-memory architecture | 存储器-存储器架构 | Ch2 p16, p23 |
+| register-memory architecture | 寄存器-存储器架构 | Ch2 p16, p24 |
+| load-store architecture / register-register | 加载-存储架构（Load-Store 架构）/ 寄存器-寄存器架构 | Ch2 p16, p27 |
+| top of stack (TOS) | 栈顶（TOS） | Ch2 p16, p19 |
+| push / pop | 压栈（Push）/ 出栈（Pop） | Ch2 p17 |
+| LIFO (last in, first out) | 后进先出（LIFO） | Ch2 p17 |
+| infix notation / postfix notation | 中缀表达式 / 后缀表达式 | Ch2 p18, p66 |
+| general purpose register (GPR) | 通用寄存器（GPR） | Ch2 p30 |
+| register file | 寄存器堆 / 寄存器组 | Ch2 p24, p38 |
+| RISC (reduced instruction set computer) | 精简指令集计算机（RISC） | Ch2 p52 |
+| CISC (complex instruction set computer) | 复杂指令集计算机（CISC） | Ch2 p52 |
+| instruction cycle | 指令周期 | Ch2 p56 |
+| fetch cycle / execute cycle | 取指周期 / 执行周期 | Ch2 p56 |
+| program counter (PC) | 程序计数器（PC） | Ch2 p57 |
+| instruction register (IR) | 指令寄存器（IR） | Ch2 p57 |
+

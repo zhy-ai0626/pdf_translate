@@ -351,3 +351,43 @@
 | hyperparameter / parameter | 超参数 / 参数 | 超参数（如 λ）训练前设定；参数（如系数）由训练得到 |
 | shrinkage / feature selection | 收缩 / 特征选择 | 收缩把系数向 0 拉近；特征选择把部分系数恰好置 0 |
 | predict / forecast | 预测 / 预测（预报） | forecast 专指对未来时间点的预测 |
+
+## 时间序列与线性序列分析（Week 5）
+
+| English | 中文 | 来源 |
+|---|---|---|
+| linear sequence analysis | 线性序列分析 | L5 p1 |
+| time series data | 时间序列数据 | L5 p3 |
+| stationary time series | 平稳时间序列 | L5 p4 |
+| non-stationary time series | 非平稳时间序列 | L5 p4 |
+| statistical properties | 统计性质 | L5 p4 |
+| step change | 均值阶跃 / 阶跃变化 | L5 p4 |
+| shift in variance | 方差变动 | L5 p4 |
+| seasonality | 季节性 | L5 p4 |
+| random fluctuation | 随机波动 | L5 p4 |
+| Augmented Dickey-Fuller (ADF) test | 增广迪基-富勒检验（ADF 检验） | L5 p5 |
+| Kwiatkowski-Phillips-Schmidt-Shin Test (KPSS) | KPSS 检验 | L5 p5 |
+| unit root | 单位根 | L5 p5 |
+| test statistic | 检验统计量 | L5 p5 |
+| critical value | 临界值 | L5 p5 |
+| autoregressive (AR) model | 自回归模型（AR 模型） | L5 p6 |
+| stochastic process | 随机过程 | L5 p9 |
+| lag / lagged variable | 滞后 / 滞后变量 | L5 p10 |
+| autocorrelation | 自相关 | L5 p10 |
+| order (of model, p) | （模型的）阶数（p） | L5 p11 |
+| numeric factor / constant | 数值因子 / 常数项 | L5 p11 |
+| residual | 残差 | L5 p13 |
+| white noise | 白噪声 | L5 p14 |
+| positive / negative / zero correlation | 正相关 / 负相关 / 零相关 | L5 p16 |
+| vector autoregressive model (VAR) | 向量自回归模型（VAR） | L5 p18 |
+| moving average (MA) | 移动平均 / 移动平均模型（MA 模型） | L5 p24 |
+| autoregressive integrated moving average (ARIMA) | 自回归积分滑动平均模型（ARIMA） | L5 p3 |
+| simple moving average (SMA) | 简单移动平均（SMA） | L5 p27 |
+| weighted moving average (WMA) | 加权移动平均（WMA） | L5 p27 |
+| exponential moving average (EMA) | 指数移动平均（EMA） | L5 p27 |
+| cumulative moving average (CMA) | 累积移动平均（CMA） | L5 p28 |
+| smoothing factor / multiplier | 平滑因子 / 乘数 | L5 p36 |
+| technical indicator / technical analysis | 技术指标 / 技术分析 | L5 p26 |
+| support and resistance | 支撑与阻力（支撑位与阻力位） | L5 p26 |
+| trading signal | 交易信号 | L5 p26 |
+

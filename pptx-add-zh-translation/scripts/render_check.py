@@ -104,7 +104,7 @@ def export_pdf(pptx, pdf, a):
                 shutil.copyfile(pptx, s_in)
                 r = subprocess.run([str(WPSCLI), "ppt2pdf", str(s_in), "-o", str(s_out), "--json"],
                                    capture_output=True, text=True, timeout=400)
-                if r.returncode == 0 and s_out.exists():
+                if s_out.exists() and s_out.stat().st_size > 0:
                     shutil.move(str(s_out), str(pdf))
                     return "wps (close to PowerPoint)"
                 print("WPS export failed:", (r.stdout + r.stderr).strip()[-300:], file=sys.stderr)

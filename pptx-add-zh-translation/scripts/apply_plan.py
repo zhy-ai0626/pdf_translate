@@ -81,7 +81,7 @@ def op_para_after(deck, n, slide, op, cfg, log):
             log.append("slide %d shape %s p%d already followed by Chinese; skipped" % (n, op["shape"], item["p"]))
             continue
         st = resolve_para(deck, n, shape, src)
-        if item.get("inline"):  # same line: append a run after the English text
+        if item.get("inline", op.get("inline")):  # same line: append a run after the English text
             if has_cjk(para_text(src)):
                 log.append("slide %d shape %s p%d already contains Chinese; skipped" % (n, op["shape"], item["p"]))
                 continue
@@ -91,6 +91,7 @@ def op_para_after(deck, n, slide, op, cfg, log):
             etree.SubElement(r, q("a:t")).text = item.get("sep", "  ") + item["zh"]
             end = src.find("a:endParaRPr", NS)
             (end.addprevious(r) if end is not None else src.append(r))
+            cfg["_ctx"]["inserted"].add(src)
             item["_done"] = True
             continue
         ppr = etree.Element(q("a:pPr"), marL=str(st["marL"]), indent="0")
@@ -258,6 +259,25 @@ def op_adjust(deck, n, slide, op, cfg, log):
             for r in p.findall("a:r", NS):
                 if r.find("a:rPr", NS) is None:
                     r.insert(0, etree.Element(q("a:rPr"), sz=str(round(st["sz"] * op["font_scale"] / 50) * 50)))
+    if op.get("space_before"):
+        body = shape.find("p:txBody", NS)
+        if body is not None:
+            ps = body.findall("a:p", NS)
+            for sb in op["space_before"]:
+                idx = sb["p"]
+                if idx < len(ps):
+                    p = ps[idx]
+                    ppr = p.find("a:pPr", NS)
+                    if ppr is None:
+                        ppr = etree.Element(q("a:pPr"))
+                        p.insert(0, ppr)
+                    bef = ppr.find("a:spcBef", NS)
+                    if bef is None:
+                        bef = etree.SubElement(ppr, q("a:spcBef"))
+                    spc = bef.find("a:spcPts", NS)
+                    if spc is None:
+                        spc = etree.SubElement(bef, q("a:spcPts"))
+                    spc.set("val", str(int(sb["pt"] * 100)))
     op["_done"] = True
 
 
