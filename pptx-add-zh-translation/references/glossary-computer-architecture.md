@@ -133,3 +133,17 @@
 | program counter (PC) | 程序计数器（PC） | Ch2 p57 |
 | instruction register (IR) | 指令寄存器（IR） | Ch2 p57 |
 
+
+## MIPS 实验 1（Lab_1_Task）
+
+| English | 中文 | 来源 |
+|---|---|---|
+| simulator | 模拟器 | Lab1 p1 |
+| directive | 伪指令 | Lab1 p2；区别：伪指令由汇编器处理，不同于处理器直接执行的 instruction（指令） |
+| data section / text section | 数据段 / 文本段（代码段） | Lab1 p2 |
+| global symbol / entry point | 全局符号 / 入口点 | Lab1 p2 |
+| system call / syscall | 系统调用 / syscall | Lab1 p2–p3 |
+| null-terminated string | 以空字符结尾的字符串 | Lab1 p3 |
+| stack pointer / frame pointer | 栈指针 / 帧指针 | Lab1 p1 |
+| global pointer / return address | 全局指针 / 返回地址 | Lab1 p1 |
+| buffer | 缓冲区 | Lab1 p3 |

@@ -203,3 +203,39 @@
 | binary (exponential) backoff | 二进制（指数）退避 | C3 |
 | polling / token passing | 轮询 / 令牌传递 | C3 |
 | efficiency | 效率 | C3 |
+
+## Chapter 3 Link Layer（Part 2 Wireless）新增（2026-10-27）
+
+"C3W" = CST309-Chapter_3_Part_2_LAN_Technologies-Wireless.pptx，页码为幻灯片页码。
+
+| English | 中文 | 来源 |
+|---|---|---|
+| wireless host / base station / wireless link | 无线主机 / 基站 / 无线链路 | C3W p5–7 |
+| network infrastructure | 网络基础设施 | C3W p4 |
+| relay | 中继 | C3W p6 |
+| backbone link | 主干链路 | C3W p7 |
+| hidden terminal problem | 隐藏终端问题（区别：障碍物挡住；signal attenuation 信号衰减是距离太远，两者后果相同） | C3W p9 |
+| fading | 衰落 | C3W p23 |
+| ad hoc / infrastructure WLAN | 自组织 / 基础设施无线局域网 | C3W p10–12 |
+| access point (AP) | 接入点（AP） | C3W p10 |
+| association / reassociation | 关联 / 重关联 | C3W p18、p28 |
+| SSID / BSSID / ESSID | 服务集标识符 / 基本服务集标识符 / 扩展服务集标识符 | C3W p18–20 |
+| BSS / ESS / IBSS | 基本服务集 / 扩展服务集 / 独立基本服务集 | C3W p19–20、p32 |
+| roaming | 漫游 | C3W p20 |
+| active / passive scanning | 主动 / 被动扫描 | C3W p21–22 |
+| probe (request / response) frame | 探测（请求 / 响应）帧 | C3W p21–22 |
+| beacon frame | 信标帧 | C3W p18、p21 |
+| CSMA/CA (collision avoidance) | 带碰撞避免的载波侦听多路访问（区别：CSMA/CD 是碰撞检测） | C3W p23 |
+| random backoff | 随机退避 | C3W p24 |
+| DIFS / SIFS | 分布式帧间间隔 / 短帧间间隔 | C3W p25 |
+| RTS / CTS | 请求发送 / 允许发送 | C3W p26 |
+| defer | 推迟 | C3W p26–27 |
+| reservation packet | 预约分组 | C3W p26 |
+| management / control / data frame | 管理帧 / 控制帧 / 数据帧 | C3W p28 |
+| frame control / duration / seq control / payload | 帧控制 / 持续时间 / 序号控制 / 有效载荷 | C3W p29 |
+| more frag / retry / power mgt / more data / Rsvd | 更多分片 / 重试 / 电源管理 / 更多数据 / 保留 | C3W p29 |
+| WEP | 有线等效保密（WEP） | C3W p29 |
+| RA / TA / DA / SA | 接收方地址 / 发送方地址 / 目的地址 / 源地址（区别：RA/TA 指这一跳，DA/SA 指端点） | C3W p30、p38 |
+| To DS / From DS | 去往 DS / 来自 DS | C3W p37–38 |
+| DS / WDS | 分布式系统 / 无线分布式系统 | C3W p37–38 |
+| 3-/4-addressing mode | 3 地址 / 4 地址模式 | C3W p31 |
