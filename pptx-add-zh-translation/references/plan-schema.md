@@ -24,7 +24,7 @@
 | `para_after` + `inline:true` | 中文接在英文**同一行**后面（单行说明、短标签） | item 里加 `"inline": true`, `sep?`（默认两个空格） |
 | `cells` | 表格单元格里在英文下面加中文；中文继承该格英文的粗体和颜色 | `shape`, `items:[{r, c, zh}]`, `scale?`, `table_scale?`（整表英文字号和行高比例）, `table_box?:{x?, y?, w?}`（移动/加宽表格，列宽按比例） |
 | `textbox` | 新建独立中文文本框（标题译文、图片标注、公式释义） | `x, y, w, h`, `zh` 或 `lines:[...]`, `pt`(默认16), `align`(l/ctr/r), `anchor`(t/ctr/b), `fill?`, `name?`, `covers?` |
-| `adjust` | 移动/缩放原有元素 | `shape`, 绝对 `x/y/w/h` 或相对 `dx/dy/dw/dh`；`font_scale`（整框英文字号比例） |
+| `adjust` | 移动/缩放原有元素 | `shape`, 绝对 `x/y/w/h` 或相对 `dx/dy/dw/dh`；`font_scale`（整框英文字号比例，相对 inventory 里的实际字号；同一框累计 ≥ 0.75，否则报错） |
 | `existing` | 声明已有中文文本框覆盖了哪些英文 | `shape`（中文框 id）, `covers:[{shape, p?}]`（省略 p = 整个形状） |
 | `skip` | 声明不翻译 | `shape`, `p?:[段落序号 或 "r5c2" 单元格]`, `why` |
 
@@ -33,6 +33,8 @@
 ## 执行顺序
 
 同一页内按列表顺序执行。先 `adjust`（缩英文）再 `para_after`，中文字号按缩后的英文计算。
+
+被 `para_after` 或 `font_scale` 改动的框，如果原稿开了"溢出时缩小文字"（inventory 标 `AUTOFIT`），执行前会把存着的缩放比例和行距缩减换算成真实字号和行距，并改为不自动缩小（输出 `note: … baked …`）。`table_scale` 同样受 0.75 下限约束。
 
 ## 示例（第 73 页：要点 + 两个 OLE 公式）
 

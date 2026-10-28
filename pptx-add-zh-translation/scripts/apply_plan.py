@@ -8,18 +8,20 @@ See references/plan-schema.md for the op list.
 """
 import argparse
 import json
+import math
 import re
 import sys
 
 from lxml import etree
 
 from ooxml import (EMU_PER_PT, NS, Deck, deep, has_cjk, iter_shapes, own_xfrm,
-                   para_text, q, resolve_box, resolve_para, shape_id)
+                   para_text, q, resolve_box, resolve_para, shape_id, style_chain)
 from codetext import looks_like_code
 from inventory import para_animated_ids, para_is_code
 
 DEFAULTS = {"scale": 0.75, "title_scale": 0.5, "cell_scale": 0.85, "min_pt": 12,
             "color": None, "ea_font": None, "name_prefix": "ZH "}
+MIN_EN_SCALE = 0.75  # rule 2: English never below 0.75 of its rendered size (not overridable from a plan)
 TRIVIAL = re.compile(r"^[^A-Za-z]*([A-Za-z][^A-Za-z]*)?$")  # no 2-letter word -> nothing to translate
 
 
@@ -55,7 +57,8 @@ def zh_size(base_sz, scale, font_scale, cfg):
     """Explicit sz (hundredths pt) so the rendered size >= min_pt."""
     sz = base_sz * scale
     floor = cfg["min_pt"] * 100 / font_scale
-    return round(max(sz, floor) / 50) * 50
+    out = round(max(sz, floor) / 50) * 50
+    return out if out >= floor else math.ceil(floor / 50) * 50  # never round below the floor
 
 
 def make_para(text, ppr, rpr):
@@ -65,6 +68,62 @@ def make_para(text, ppr, rpr):
     r.append(rpr)
     etree.SubElement(r, q("a:t")).text = text
     return p
+
+
+def check_en_scale(cfg, sid, factor, key):
+    """Rule 2 as a hard check; factors of several ops on one shape multiply."""
+    done = cfg["_ctx"]["en_scale"]
+    total = done.get(sid, 1.0) * factor
+    if total < MIN_EN_SCALE - 1e-6:
+        raise PlanError("shape %s: %s brings English to %.2f of its size (minimum %.2f). why: rule 2 - "
+                        "English below 0.75 becomes unreadable. Fix: put fewer Chinese lines in the box "
+                        "(code/assembly rows get no Chinese line; short labels use inline), move/widen the "
+                        "box (dx/dy/dw/dh), or put the Chinese in a textbox in free space; if it still does "
+                        "not fit, report the slide to the user" % (sid, key, total, MIN_EN_SCALE))
+    done[sid] = total
+
+
+def bake_autofit(deck, n, shape):
+    """Turn a stored "shrink text on overflow" (normAutofit fontScale/lnSpcReduction) into explicit
+    sizes and line spacing, and switch auto-shrink off.  Otherwise the stored scale multiplies every
+    size the plan writes, and WPS/PowerPoint shrink the box again once the added Chinese overflows."""
+    body = shape.find("p:txBody", NS)
+    bpr = body.find("a:bodyPr", NS) if body is not None else None
+    if bpr is None or bpr.find("a:spAutoFit", NS) is not None:
+        return None
+    fit = bpr.find("a:normAutofit", NS)
+    fs = int(fit.get("fontScale", 100000)) / 100000 if fit is not None else 1.0
+    red = int(fit.get("lnSpcReduction", 0)) if fit is not None else 0
+    for p in body.findall("a:p", NS):
+        st = resolve_para(deck, n, shape, p)
+        if fs != 1.0:
+            for el in p.iter(q("a:rPr"), q("a:endParaRPr")):
+                el.set("sz", str(round(int(el.get("sz") or st["sz"]) * fs / 10) * 10))
+            for r in list(p.findall("a:r", NS)) + list(p.findall("a:fld", NS)):
+                if r.find("a:rPr", NS) is None:
+                    r.insert(0, etree.Element(q("a:rPr"), sz=str(round(st["sz"] * fs / 10) * 10)))
+        if red:
+            ppr = p.find("a:pPr", NS)
+            chain = ([ppr] if ppr is not None else []) + style_chain(deck, n, shape, st["level"])
+            ln = next((c.find("a:lnSpc", NS) for c in chain if c.find("a:lnSpc", NS) is not None), None)
+            if ln is not None and ln.find("a:spcPct", NS) is None:
+                continue  # exact spacing (spcPts) is not reduced by autofit
+            pct = int(ln.find("a:spcPct", NS).get("val")) if ln is not None else 100000
+            if ppr is None:
+                ppr = etree.Element(q("a:pPr"))
+                p.insert(0, ppr)
+            old = ppr.find("a:lnSpc", NS)
+            if old is not None:
+                ppr.remove(old)
+            new = etree.Element(q("a:lnSpc"))
+            etree.SubElement(new, q("a:spcPct"), val=str(max(pct - red, 50000)))
+            ppr.insert(0, new)
+    for el in list(bpr):
+        if etree.QName(el).localname in ("normAutofit", "noAutofit"):
+            bpr.remove(el)
+    warp = bpr.find("a:prstTxWarp", NS)  # schema order: prstTxWarp, then the autofit choice
+    bpr.insert(1 if warp is not None else 0, etree.Element(q("a:noAutofit")))
+    return (fs, red / 100000) if fit is not None and (fs != 1.0 or red) else None
 
 
 def op_para_after(deck, n, slide, op, cfg, log):
@@ -116,6 +175,7 @@ def op_cells(deck, n, slide, op, cfg, log):
     tbl = frame.find(".//a:tbl", NS)
     rows = tbl.findall("a:tr", NS)
     if op.get("table_scale"):
+        check_en_scale(cfg, op["shape"], op["table_scale"], "table_scale")
         for rpr in tbl.iter(q("a:rPr"), q("a:endParaRPr")):
             rpr.set("sz", str(round(int(rpr.get("sz", 1800)) * op["table_scale"] / 50) * 50))
         for tr in rows:
@@ -213,6 +273,8 @@ def move_vml(deck, n, shape, x, y, w, h):
 
 def op_adjust(deck, n, slide, op, cfg, log):
     shape, groups = find_shape(slide, op["shape"])
+    if op.get("font_scale"):
+        check_en_scale(cfg, op["shape"], op["font_scale"], "font_scale")
     if groups and any(k in op for k in ("x", "y", "w", "h", "dx", "dy", "dw", "dh")):
         raise PlanError("shape %s is inside a group; move the group instead" % op["shape"])
     if any(k in op for k in ("x", "y", "w", "h", "dx", "dy", "dw", "dh")):
@@ -376,7 +438,17 @@ def main():
         if done_before and not a.force:
             log.append("slide %d already processed (has %s); skipped. Apply plans to the original deck, or --force" % (n, done_before[0]))
             continue
-        cfg["_ctx"] = {"orig": snapshot(slide), "inserted": set()}
+        cfg["_ctx"] = {"orig": snapshot(slide), "inserted": set(), "en_scale": {}}
+        text_ops = {op["shape"] for op in entry["ops"]
+                    if op["op"] == "para_after" or (op["op"] == "adjust" and op.get("font_scale"))}
+        for sid in sorted(text_ops):
+            try:
+                baked = bake_autofit(deck, n, find_shape(slide, sid)[0])
+            except PlanError:
+                continue  # reported by the op itself
+            if baked:
+                log.append("slide %d shape %s: stored autofit (font %.0f%%, line spacing -%.0f%%) baked into explicit "
+                           "sizes; auto-shrink turned off" % (n, sid, baked[0] * 100, baked[1] * 100))
         for op in entry["ops"]:
             fn = OPS.get(op["op"], "unknown")
             if fn == "unknown":

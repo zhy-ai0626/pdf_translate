@@ -89,11 +89,14 @@ def slide_record(deck, number):
                     continue
                 st = resolve_para(deck, number, shape, p)
                 zh = has_cjk(text)
-                paras.append({"p": i, "lvl": st["level"], "sz_pt": st["sz"] / 100, "zh": zh,
+                paras.append({"p": i, "lvl": st["level"], "sz_pt": round(st["sz"] * st["fontScale"] / 100, 1), "zh": zh,
                               "code": not zh and para_is_code(deck, number, shape, p, st["level"]), "text": text})
             if not paras:
                 continue
             rec["paragraphs"] = paras
+            fit = shape.find("p:txBody/a:bodyPr/a:normAutofit", NS)
+            if fit is not None and fit.get("fontScale"):
+                rec["autofit"] = int(fit.get("fontScale")) / 100000
             rec["all_zh"] = all(x["zh"] for x in paras)
             rec["para_animated"] = sid in animated
             shapes.append(rec)
@@ -134,6 +137,8 @@ def to_markdown(deck, records):
         for s in rec["shapes"]:
             tag = "zh-box " if s.get("all_zh") else ""
             anim = " PARA-ANIMATED" if s.get("para_animated") else ""
+            if s.get("autofit"):  # sizes below already include it; apply_plan bakes it in
+                anim += " AUTOFIT %d%%" % round(s["autofit"] * 100)
             lines.append("- %sshape %s `%s` %s box=%s%s" % (tag, s["id"], s["name"], s["placeholder"] or s["kind"], s["box_pt"], anim))
             for p in s.get("paragraphs", []):
                 lines.append("    - p%d L%d %gpt%s: %s" % (p["p"], p["lvl"], p["sz_pt"], mark(p), p["text"]))
